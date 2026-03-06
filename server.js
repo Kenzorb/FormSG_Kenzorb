@@ -2,13 +2,6 @@ import express from "express";
 import formsg from "@opengovsg/formsg-sdk";
 import { google } from "googleapis";
 
-console.log("Starting server...");
-console.log("FORMSG mode:", process.env.FORMSG_MODE || "production");
-console.log("GSHEET_ID exists:", !!process.env.GSHEET_ID);
-console.log("GSHEET_TAB:", process.env.GSHEET_TAB || "Sheet1");
-console.log("FORM secret exists:", !!process.env.FORMSG_FORM_SECRET_KEY_PEM);
-console.log("Google JSON exists:", !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-
 const app = express();
 app.use(express.json({ limit: "10mb" }));
 
@@ -30,6 +23,9 @@ const sheets = google.sheets({ version: "v4", auth });
 
 const SHEET_ID = process.env.GSHEET_ID;
 const SHEET_TAB = process.env.GSHEET_TAB || "Sheet1";
+const WEBHOOK_URL =
+  process.env.WEBHOOK_URL ||
+  "https://formsg-kenzorb.onrender.com/formsg-webhook";
 
 const COLUMNS = [
   "Response ID",
@@ -67,27 +63,39 @@ app.post("/formsg-webhook", async (req, res) => {
   console.log("Body received:", JSON.stringify(req.body).slice(0, 500));
 
   try {
-    const decrypted = await sdk.crypto.decrypt(
-      process.env.FORMSG_FORM_SECRET_KEY_PEM,
-      req.body
+    // 1) Verify webhook signature
+    sdk.webhooks.authenticate(
+      req.get("X-FormSG-Signature"),
+      WEBHOOK_URL
     );
 
+    // 2) Decrypt ONLY req.body.data
+    const decrypted = sdk.crypto.decrypt(
+      process.env.FORMSG_FORM_SECRET_KEY_PEM,
+      req.body.data
+    );
+
+    if (!decrypted) {
+      console.error("Decryption failed: sdk.crypto.decrypt returned null");
+      return res.status(400).send("Could not decrypt submission");
+    }
+
     console.log("Decryption succeeded");
-    console.log("Submission ID:", decrypted.submissionId || decrypted.id);
 
     const answers = new Map();
     for (const r of decrypted.responses || []) {
       const q = r.question;
-      let a = r.answer;
+      let a = r.answer ?? r.answerArray ?? "";
 
       if (Array.isArray(a)) a = a.join(", ");
       if (a && typeof a === "object") a = JSON.stringify(a);
 
-      answers.set(q, a ?? "");
+      answers.set(q, a);
     }
 
-    const submissionId = decrypted.submissionId || decrypted.id || "";
-    const created = decrypted.created || new Date().toISOString();
+    // submissionId and created are on req.body.data, not decrypted
+    const submissionId = req.body.data?.submissionId || "";
+    const created = req.body.data?.created || new Date().toISOString();
 
     const row = COLUMNS.map((col) => {
       if (col === "Response ID") return submissionId;
@@ -95,8 +103,6 @@ app.post("/formsg-webhook", async (req, res) => {
       if (col === "Download Status") return "Success";
       return answers.get(col) ?? "";
     });
-
-    console.log("Appending row to sheet...");
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
