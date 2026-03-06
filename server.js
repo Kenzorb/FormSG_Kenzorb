@@ -2,13 +2,26 @@ import express from "express";
 import formsg from "@opengovsg/formsg-sdk";
 import { google } from "googleapis";
 
-const app = express();
-app.use(express.json({ limit: "2mb" }));
+console.log("Starting server...");
+console.log("FORMSG mode:", process.env.FORMSG_MODE || "production");
+console.log("GSHEET_ID exists:", !!process.env.GSHEET_ID);
+console.log("GSHEET_TAB:", process.env.GSHEET_TAB || "Sheet1");
+console.log("FORM secret exists:", !!process.env.FORMSG_FORM_SECRET_KEY_PEM);
+console.log("Google JSON exists:", !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
 
-// FormSG SDK (used to verify+decrypt webhook submissions)
+const app = express();
+app.use(express.json({ limit: "10mb" }));
+
+app.get("/", (req, res) => {
+  res.status(200).send("FormSG webhook running");
+});
+
+app.get("/formsg-webhook", (req, res) => {
+  res.status(200).send("Webhook endpoint is live. Use POST only.");
+});
+
 const sdk = formsg({ mode: process.env.FORMSG_MODE || "production" });
 
-// Google Sheets client
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -18,7 +31,6 @@ const sheets = google.sheets({ version: "v4", auth });
 const SHEET_ID = process.env.GSHEET_ID;
 const SHEET_TAB = process.env.GSHEET_TAB || "Sheet1";
 
-// Column order (matches your CSV header)
 const COLUMNS = [
   "Response ID",
   "Timestamp",
@@ -44,43 +56,47 @@ const COLUMNS = [
   "Start Date (OIL/PHIL/Birthday Off)",
   "End Date (OIL/PHIL/Birthday Off)",
   "Acknowledgement of Status",
-  "Acknowledgement of Status", // duplicate column in your CSV
+  "Acknowledgement of Status",
   "Acknowledgment of MC Process",
   "Acknowledgement of HL",
 ];
 
 app.post("/formsg-webhook", async (req, res) => {
+  console.log("POST /formsg-webhook hit");
+  console.log("Headers received:", req.headers);
+  console.log("Body received:", JSON.stringify(req.body).slice(0, 500));
+
   try {
-    // Decrypt with your form secret key (from FormSG)
     const decrypted = await sdk.crypto.decrypt(
       process.env.FORMSG_FORM_SECRET_KEY_PEM,
       req.body
     );
 
-    // Build map: question -> answer
-    // (Different field types may structure answer differently; this handles common cases.)
+    console.log("Decryption succeeded");
+    console.log("Submission ID:", decrypted.submissionId || decrypted.id);
+
     const answers = new Map();
     for (const r of decrypted.responses || []) {
       const q = r.question;
       let a = r.answer;
 
-      // Some answers can be objects/arrays; flatten to something Sheets-friendly
       if (Array.isArray(a)) a = a.join(", ");
       if (a && typeof a === "object") a = JSON.stringify(a);
 
       answers.set(q, a ?? "");
     }
 
-    // Fill row in CSV order
     const submissionId = decrypted.submissionId || decrypted.id || "";
     const created = decrypted.created || new Date().toISOString();
 
     const row = COLUMNS.map((col) => {
       if (col === "Response ID") return submissionId;
       if (col === "Timestamp") return created;
-      if (col === "Download Status") return "Success"; // like your CSV export
+      if (col === "Download Status") return "Success";
       return answers.get(col) ?? "";
     });
+
+    console.log("Appending row to sheet...");
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
@@ -90,11 +106,14 @@ app.post("/formsg-webhook", async (req, res) => {
       requestBody: { values: [row] },
     });
 
+    console.log("Row appended successfully");
     return res.status(200).send("ok");
   } catch (err) {
-    console.error(err);
+    console.error("Webhook error:", err);
     return res.status(500).send("error");
   }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log("Webhook server running"));
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Webhook server running");
+});
