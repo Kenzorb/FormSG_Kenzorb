@@ -117,12 +117,34 @@ app.post("/formsg-webhook", async (req, res) => {
       return answers.get(col) ?? "";
     });
 
-    await sheets.spreadsheets.values.append({
+    // 1️⃣ Insert a new row below the header
+    await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_TAB}!A:AA`,
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: 0,
+                dimension: "ROWS",
+                startIndex: 1,
+                endIndex: 2
+              },
+              inheritFromBefore: false
+            }
+          }
+        ]
+      }
+    });
+
+    // 2️⃣ Write the new data into row 2
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_TAB}!A2:AA`,
       valueInputOption: "RAW",
-      insertDataOption: "INSERT_ROWS",
-      requestBody: { values: [row] },
+      requestBody: {
+        values: [row]
+      }
     });
 
     console.log("Row appended successfully");
