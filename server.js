@@ -97,6 +97,19 @@ app.post("/formsg-webhook", async (req, res) => {
     const submissionId = req.body.data?.submissionId || "";
     const created = req.body.data?.created || new Date().toISOString();
 
+    // Check if Response ID already exists in column A
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_TAB}!A:A`,
+    });
+
+    const existingIds = (existing.data.values || []).flat();
+
+    if (existingIds.includes(submissionId)) {
+      console.log(`Duplicate submission detected: ${submissionId}`);
+      return res.status(200).send("duplicate ignored");
+    }
+
     const row = COLUMNS.map((col) => {
       if (col === "Response ID") return submissionId;
       if (col === "Timestamp") return created;
