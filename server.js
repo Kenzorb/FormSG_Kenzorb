@@ -6,6 +6,7 @@ const app = express();
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (req, res) => {
+  console.log("Root ping received at", new Date().toISOString());
   res.status(200).send("FormSG webhook running");
 });
 
