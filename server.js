@@ -59,18 +59,13 @@ const COLUMNS = [
 ];
 
 // Convert ISO 8601 UTC Format to Singapore Time
-function formatDate(isoString) {
+function toSingaporeDate(isoString) {
   const date = new Date(isoString)
 
-  const sg = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Singapore" }))
+  // convert UTC → Singapore (+8h)
+  const sg = new Date(date.getTime() + 8 * 60 * 60 * 1000)
 
-  const month = sg.getMonth() + 1
-  const day = sg.getDate()
-  const year = sg.getFullYear()
-  const hours = sg.getHours().toString().padStart(2, "0")
-  const minutes = sg.getMinutes().toString().padStart(2, "0")
-
-  return `${month}/${day}/${year} ${hours}:${minutes}`
+  return sg
 }
 
 app.post("/formsg-webhook", async (req, res) => {
@@ -111,7 +106,7 @@ app.post("/formsg-webhook", async (req, res) => {
 
     // submissionId and created are on req.body.data, not decrypted
     const submissionId = req.body.data?.submissionId || "";
-    const created = formatDate(req.body.data?.created) || new Date().toISOString();
+    const created = toSingaporeDate(req.body.data?.created) || new Date().toISOString();
 
     // Check if Response ID already exists in column A
     const existing = await sheets.spreadsheets.values.get({
@@ -174,3 +169,4 @@ app.post("/formsg-webhook", async (req, res) => {
 app.listen(process.env.PORT || 3000, () => {
   console.log("Webhook server running");
 });
+
