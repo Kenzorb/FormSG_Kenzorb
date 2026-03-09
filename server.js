@@ -146,7 +146,7 @@ app.post("/formsg-webhook", async (req, res) => {
                 startIndex: 1,
                 endIndex: 2
               },
-              inheritFromBefore: false
+              inheritFromBefore: true
             }
           }
         ]
@@ -174,3 +174,4 @@ app.post("/formsg-webhook", async (req, res) => {
 app.listen(process.env.PORT || 3000, () => {
   console.log("Webhook server running");
 });
+
