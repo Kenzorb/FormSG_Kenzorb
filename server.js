@@ -163,7 +163,7 @@ app.post("/formsg-webhook", async (req, res) => {
     // 2️⃣ Write the new data into row 2
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_TAB}!A2:AA`,
+      range: `${SHEET_TAB}!A2:AH`,
       valueInputOption: "RAW",
       requestBody: {
         values: [row]
