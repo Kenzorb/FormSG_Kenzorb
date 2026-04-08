@@ -63,6 +63,7 @@ const COLUMNS = [
   "Acknowledgement of Pre-Booking Status",
   "Acknowledgment of MC Process",
   "Acknowledgement of HL",
+  "Appointment Timing (Indicate estimated/fixed appointment time)",
 ];
 
 // Convert ISO 8601 UTC Format to Singapore Time
@@ -163,7 +164,7 @@ app.post("/formsg-webhook", async (req, res) => {
     // 2️⃣ Write the new data into row 2
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_TAB}!A2:AH`,
+      range: `${SHEET_TAB}!A2:AI`,
       valueInputOption: "RAW",
       requestBody: {
         values: [row]
