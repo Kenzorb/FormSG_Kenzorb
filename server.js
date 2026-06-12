@@ -99,6 +99,8 @@ app.post("/formsg-webhook", async (req, res) => {
       req.body.data
     );
 
+    console.log(JSON.stringify(decrypted, null, 2));
+
     if (!decrypted) {
       console.error("Decryption failed: sdk.crypto.decrypt returned null");
       return res.status(400).send("Could not decrypt submission");
