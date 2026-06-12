@@ -32,7 +32,7 @@ const COLUMNS = [
   "Response ID",
   "Timestamp",
   "Download Status",
-  "[MyInfo] Name",
+  "[Myinfo] Name",
   "Department",
   "Status",
   "Do you have an MA/AL/OIL/WFH?",
